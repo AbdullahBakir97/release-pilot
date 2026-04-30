@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Release Pilot - Beautiful release notes from your conventional commits</title>
+  <style>
+    :root {
+      --bg: #0d1117; --surface: #161b22; --surface-2: #1c2128; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e;
+      --accent: #10b981; --accent-2: #14b8a6; --accent-soft: rgba(16,185,129,0.15);
+      --green: #3fb950; --yellow: #d29922; --red: #f85149; --purple: #bc8cff;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+    .container { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
+    header { border-bottom: 1px solid var(--border); padding: 20px 0; position: sticky; top: 0; background: rgba(13,17,23,0.92); backdrop-filter: blur(8px); z-index: 10; }
+    header .container { display: flex; align-items: center; justify-content: space-between; }
+    .logo { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 600; color: var(--text); text-decoration: none; }
+    .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; color: #0d1117; font-weight: 800; }
+    .nav-links { display: flex; gap: 24px; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 14px; }
+    .nav-links a:hover { color: var(--text); }
+
+    .hero { text-align: center; padding: 80px 0 60px; }
+    .hero h1 { font-size: 48px; font-weight: 800; line-height: 1.2; margin-bottom: 16px; }
+    .hero h1 span { background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hero p { font-size: 20px; color: var(--muted); max-width: 640px; margin: 0 auto 32px; }
+    .btn { padding: 12px 28px; border-radius: 8px; font-size: 16px; font-weight: 600; text-decoration: none; transition: all 0.2s; border: none; cursor: pointer; display: inline-block; }
+    .btn-primary { background: var(--accent); color: #0d1117; }
+    .btn-primary:hover { background: #0ea372; }
+    .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+    .cta-group { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+
+    section { padding: 60px 0; border-top: 1px solid var(--border); }
+    section h2 { text-align: center; font-size: 28px; margin-bottom: 8px; }
+    section .subtitle { text-align: center; color: var(--muted); margin-bottom: 32px; }
+
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .step-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; position: relative; }
+    .step-num { position: absolute; top: -12px; left: 24px; background: var(--accent); color: #0d1117; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; }
+    .step-card h3 { margin: 8px 0; font-size: 16px; }
+    .step-card p { color: var(--muted); font-size: 14px; }
+
+    .demo-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+    .demo-input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; color: var(--text); font-family: 'SFMono-Regular', Consolas, monospace; font-size: 13px; resize: vertical; }
+    .demo-input:focus { outline: none; border-color: var(--accent); }
+    .demo-btn { background: var(--accent); color: #0d1117; padding: 10px 24px; border-radius: 6px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 12px; }
+    .demo-btn:hover { background: #0ea372; }
+    .preview-output { margin-top: 24px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; display: none; }
+    .preview-output.active { display: block; }
+    .preview-output h2 { text-align: left; font-size: 22px; margin-bottom: 12px; border: none; }
+    .preview-output h3 { margin: 16px 0 8px; font-size: 16px; color: var(--accent); }
+    .preview-output ul { list-style: none; padding-left: 0; }
+    .preview-output li { padding: 4px 0; font-size: 14px; }
+    .preview-output li::before { content: "▸ "; color: var(--accent); }
+    .preview-output .meta { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+    .empty { color: var(--muted); font-style: italic; }
+
+    .features-grid, .sections-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    .feature-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+    .feature-card .icon { font-size: 26px; margin-bottom: 8px; }
+    .feature-card h3 { font-size: 14px; margin-bottom: 6px; }
+    .feature-card p { font-size: 13px; color: var(--muted); }
+    .section-pill { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; display: flex; align-items: center; gap: 10px; }
+    .section-pill .label { font-size: 14px; }
+    .section-pill code { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 12px; color: var(--accent); background: var(--accent-soft); padding: 2px 6px; border-radius: 4px; margin-left: auto; }
+
+    .example-output { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 13px; white-space: pre-wrap; color: var(--text); overflow-x: auto; }
+    .example-output .h2 { color: var(--accent); font-weight: 700; }
+    .example-output .h3 { color: var(--accent-2); }
+
+    footer { border-top: 1px solid var(--border); padding: 24px 0; text-align: center; color: var(--muted); font-size: 13px; }
+    footer a { color: var(--accent); text-decoration: none; }
+    @media (max-width: 768px) { .hero h1 { font-size: 32px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="#" class="logo"><div class="logo-icon">R</div>Release Pilot</a>
+      <nav class="nav-links">
+        <a href="#demo">Try It</a>
+        <a href="#how">How</a>
+        <a href="#sections">Sections</a>
+        <a href="https://github.com/apps/release-pilot">Install</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" style="border-top:none">
+      <div class="container">
+        <h1>Beautiful release notes <br>from your <span>conventional commits</span></h1>
+        <p>Push a tag. A polished, sectioned draft release appears on GitHub, complete with PR links, contributors, and a full-changelog URL. Review, publish, done.</p>
+        <div class="cta-group">
+          <a href="https://github.com/apps/release-pilot" class="btn btn-primary">Install on GitHub</a>
+          <a href="#demo" class="btn btn-outline">Try the Demo</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="how">
+      <div class="container">
+        <h2>How It Works</h2>
+        <p class="subtitle">Three steps. Zero workflow files.</p>
+        <div class="steps">
+          <div class="step-card"><div class="step-num">1</div><h3>Push a tag</h3><p>Tag a commit with <code>v1.3.0</code> and push it. Release Pilot listens for the webhook.</p></div>
+          <div class="step-card"><div class="step-num">2</div><h3>We read your commits</h3><p>Every commit since the previous tag is parsed, classified, and matched to its PR.</p></div>
+          <div class="step-card"><div class="step-num">3</div><h3>Draft release appears</h3><p>A grouped, sectioned, contributor-credited draft lands in the Releases tab, ready to publish.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="demo">
+      <div class="container">
+        <h2>Live Demo</h2>
+        <p class="subtitle">Paste conventional commit messages, one per line. We'll generate the release notes locally in your browser.</p>
+        <div class="demo-card">
+          <textarea class="demo-input" id="commitsInput" rows="10" placeholder="feat(auth): add OAuth2 login support&#10;fix(parser): handle empty input gracefully&#10;docs(readme): clarify installation steps&#10;refactor(core): simplify token caching&#10;chore(deps): bump fastapi from 0.115 to 0.118&#10;feat(api)!: drop legacy /v1 endpoints&#10;ci: speed up matrix builds with caching"></textarea>
+          <button class="demo-btn" onclick="generate()">Generate Release Notes</button>
+          <div class="preview-output" id="previewOutput"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="example">
+      <div class="container">
+        <h2>What You Get</h2>
+        <p class="subtitle">An example of the markdown Release Pilot produces.</p>
+        <div class="example-output"><span class="h2">## What's Changed</span>
+
+<span class="h3">### ✨ Features</span>
+- add OAuth2 login support (#42, abc1234) by @alice
+- introduce /v2/search endpoint (#48, def5678) by @bob
+
+<span class="h3">### 🐛 Bug Fixes</span>
+- handle empty input gracefully (#43, ghi9012) by @carol
+
+<span class="h3">### 📦 Dependencies</span>
+- bump fastapi from 0.115 to 0.118 (#49, jkl3456) by @dependabot
+
+<span class="h3">### 💥 BREAKING CHANGES</span>
+- drop legacy /v1 endpoints (#50, mno7890) by @alice
+
+---
+
+**Contributors:** @alice @bob @carol @dependabot
+
+**Full Changelog:** v1.2.0...v1.3.0</div>
+      </div>
+    </section>
+
+    <section id="sections">
+      <div class="container">
+        <h2>Default Sections</h2>
+        <p class="subtitle">Eight emoji-headed groups out of the box. Override any of them per repo.</p>
+        <div class="sections-grid">
+          <div class="section-pill"><span class="label">✨ Features</span><code>feat</code></div>
+          <div class="section-pill"><span class="label">🐛 Bug Fixes</span><code>fix</code></div>
+          <div class="section-pill"><span class="label">📚 Documentation</span><code>docs</code></div>
+          <div class="section-pill"><span class="label">♻️ Refactoring</span><code>refactor, perf</code></div>
+          <div class="section-pill"><span class="label">🧪 Tests</span><code>test</code></div>
+          <div class="section-pill"><span class="label">⚙️ CI / Build</span><code>ci, build</code></div>
+          <div class="section-pill"><span class="label">📦 Dependencies</span><code>chore(deps)</code></div>
+          <div class="section-pill"><span class="label">🔧 Chores</span><code>chore</code></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Release Pilot &mdash; Open source GitHub App &mdash; <a href="https://github.com/AbdullahBakir97/release-pilot">GitHub</a></p>
+    </div>
+  </footer>
+
+  <script>
+    const CONV_RE = /^(?<type>feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\((?<scope>[^)]+)\))?(?<bang>!)?:\s*(?<desc>.+)$/i;
+    const SECTIONS = [
+      { title: '✨ Features', types: ['feat'] },
+      { title: '🐛 Bug Fixes', types: ['fix'] },
+      { title: '📚 Documentation', types: ['docs'] },
+      { title: '♻️ Refactoring', types: ['refactor', 'perf'] },
+      { title: '🧪 Tests', types: ['test'] },
+      { title: '⚙️ CI / Build', types: ['ci', 'build'] },
+      { title: '📦 Dependencies', types: ['chore'], onlyScope: /deps|deps-dev/ },
+      { title: '🔧 Chores', types: ['chore'], excludingScope: /deps|deps-dev/ },
+    ];
+
+    function classify(line) {
+      const m = line.match(CONV_RE);
+      if (!m) return { type: 'unknown', scope: null, breaking: /^BREAKING[ -]CHANGE/i.test(line), desc: line };
+      return {
+        type: m.groups.type.toLowerCase(),
+        scope: m.groups.scope || null,
+        breaking: !!m.groups.bang,
+        desc: m.groups.desc.trim(),
+      };
+    }
+
+    function bucket(commits) {
+      const breaking = [];
+      const consumed = new Set();
+      commits.forEach((c, i) => { if (c.breaking) { breaking.push(c); consumed.add(i); } });
+
+      const groups = SECTIONS.map(s => ({ title: s.title, items: [] }));
+      commits.forEach((c, i) => {
+        if (consumed.has(i)) return;
+        for (let s = 0; s < SECTIONS.length; s++) {
+          const sec = SECTIONS[s];
+          if (!sec.types.includes(c.type)) continue;
+          if (sec.onlyScope && !(c.scope && sec.onlyScope.test(c.scope))) continue;
+          if (sec.excludingScope && c.scope && sec.excludingScope.test(c.scope)) continue;
+          groups[s].items.push(c);
+          consumed.add(i);
+          break;
+        }
+      });
+
+      return { groups: groups.filter(g => g.items.length), breaking };
+    }
+
+    function bumpKind(commits) {
+      if (!commits.length) return 'none';
+      if (commits.some(c => c.breaking)) return 'major';
+      if (commits.some(c => c.type === 'feat')) return 'minor';
+      return 'patch';
+    }
+
+    function render(commits) {
+      const { groups, breaking } = bucket(commits);
+      const out = document.getElementById('previewOutput');
+      out.classList.add('active');
+
+      if (!commits.length) {
+        out.innerHTML = '<p class="empty">No commits provided.</p>';
+        return;
+      }
+
+      let html = '<h2>What\'s Changed</h2>';
+      if (breaking.length) {
+        html += '<h3>💥 BREAKING CHANGES</h3><ul>';
+        breaking.forEach(c => { html += `<li>${escapeHtml(formatItem(c))}</li>`; });
+        html += '</ul>';
+      }
+      groups.forEach(g => {
+        html += `<h3>${g.title}</h3><ul>`;
+        g.items.forEach(c => { html += `<li>${escapeHtml(formatItem(c))}</li>`; });
+        html += '</ul>';
+      });
+      if (!groups.length && !breaking.length) {
+        html += '<p class="empty">No conventional commits detected.</p>';
+      }
+
+      const bk = bumpKind(commits);
+      html += `<div class="meta">Implied bump: <strong style="color:var(--accent)">${bk}</strong> &middot; ${commits.length} commits</div>`;
+      out.innerHTML = html;
+    }
+
+    function formatItem(c) {
+      const scope = c.scope ? `(${c.scope}) ` : '';
+      return `${scope}${c.desc}`;
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+    }
+
+    function generate() {
+      const raw = document.getElementById('commitsInput').value;
+      const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const commits = lines.map(classify);
+      render(commits);
+    }
+  </script>
+</body>
+</html>

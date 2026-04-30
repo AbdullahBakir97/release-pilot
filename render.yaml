@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: release-pilot
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: ENV
+        value: production
+      - key: APP_ID
+        sync: false
+      - key: PRIVATE_KEY
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: PORT
+        value: "8000"
+    healthCheckPath: /health
