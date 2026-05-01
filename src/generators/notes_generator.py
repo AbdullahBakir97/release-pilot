@@ -1,4 +1,10 @@
-"""Assemble the markdown body of a release draft."""
+"""Assemble the markdown body of a release draft.
+
+The generated notes are designed to be publishable as-is: each release opens
+with a one-line summary that tells a reader what changed at a glance, then
+breaking changes (if any) are surfaced in their own callout, then the
+detailed sections, contributors, and full-changelog link.
+"""
 
 from __future__ import annotations
 
@@ -41,10 +47,8 @@ class MarkdownNotesGenerator(INotesGenerator):
         # 3. Build markdown body.
         full_changelog_url = self._full_changelog_url(spec)
         contributors = self._contributors.list_contributors(filtered)
-        body = self._render_body(spec, groups, contributors, full_changelog_url)
-
-        # 4. Determine bump kind from breaking + types.
         bump = self._compute_bump(filtered, is_prerelease=spec.is_prerelease)
+        body = self._render_body(spec, groups, filtered, contributors, full_changelog_url, bump)
 
         return ReleaseDraft(
             name=spec.tag,
@@ -87,13 +91,40 @@ class MarkdownNotesGenerator(INotesGenerator):
         self,
         spec: ReleaseSpec,
         groups: list[ChangeGroup],
+        deltas: list[CommitDelta],
         contributors: list[str],
         full_changelog_url: str | None,
+        bump: BumpKind,
     ) -> str:
-        lines: list[str] = ["## What's Changed", ""]
+        """Assemble the markdown sections of the release body."""
+        lines: list[str] = []
+
+        # 1. Summary header — one-liner that's readable in feeds and email.
+        summary = self._build_summary(deltas, bump)
+        if summary:
+            lines.append(summary)
+            lines.append("")
+
+        # 2. Breaking-change callout, if any. Placed near the top so it's
+        #    impossible to miss when scanning a release.
+        breaking = [d for d in deltas if d.breaking]
+        if breaking:
+            lines.append("> [!WARNING]")
+            lines.append("> **This release contains breaking changes.** Review the section below before upgrading.")
+            lines.append("")
+
+        # 3. Detailed sections.
+        lines.append("## What's Changed")
+        lines.append("")
 
         if not groups:
-            lines.append("_No notable changes._")
+            # Empty release — say so explicitly rather than rendering a
+            # blank section that might suggest tooling failure.
+            lines.append("_No notable changes since the previous release._")
+            lines.append(
+                "_If you expected entries here, check that commits since the "
+                "previous tag follow the configured filters._"
+            )
             lines.append("")
         else:
             for group in groups:
@@ -103,16 +134,78 @@ class MarkdownNotesGenerator(INotesGenerator):
                     lines.append(self._render_commit_line(spec, commit))
                 lines.append("")
 
+        # 4. Contributors with count.
         if contributors:
             lines.append("---")
             lines.append("")
-            lines.append(f"**Contributors:** {' '.join(contributors)}")
+            count = len(contributors)
+            noun = "contributor" if count == 1 else "contributors"
+            joined = " ".join(contributors)
+            lines.append(f"**{count} {noun}:** {joined}")
             lines.append("")
 
+        # 5. Full changelog link.
         if full_changelog_url:
             lines.append(f"**Full Changelog:** {full_changelog_url}")
 
         return "\n".join(lines).rstrip() + "\n"
+
+    @staticmethod
+    def _build_summary(deltas: list[CommitDelta], bump: BumpKind) -> str:
+        """Produce a one-line summary describing the release at a glance.
+
+        Examples:
+          "**Major release** — 3 breaking changes, 5 features, 12 fixes."
+          "**Minor release** — 2 features, 4 fixes, 1 doc update."
+          "**Patch release** — 3 fixes, 1 chore."
+        """
+        if not deltas:
+            return ""
+
+        kind_label = {
+            BumpKind.MAJOR: "Major release",
+            BumpKind.MINOR: "Minor release",
+            BumpKind.PATCH: "Patch release",
+            BumpKind.PRERELEASE: "Pre-release",
+            BumpKind.NONE: "Release",
+        }[bump]
+
+        # Count commits by category for the summary line.
+        counts: dict[str, int] = {}
+        for d in deltas:
+            if d.breaking:
+                counts["breaking"] = counts.get("breaking", 0) + 1
+            if d.type is ChangeType.FEAT:
+                counts["feat"] = counts.get("feat", 0) + 1
+            elif d.type is ChangeType.FIX:
+                counts["fix"] = counts.get("fix", 0) + 1
+            elif d.type is ChangeType.DOCS:
+                counts["docs"] = counts.get("docs", 0) + 1
+            elif d.type is ChangeType.PERF:
+                counts["perf"] = counts.get("perf", 0) + 1
+
+        parts: list[str] = []
+        if counts.get("breaking"):
+            n = counts["breaking"]
+            parts.append(f"{n} breaking change{'s' if n != 1 else ''}")
+        if counts.get("feat"):
+            n = counts["feat"]
+            parts.append(f"{n} feature{'s' if n != 1 else ''}")
+        if counts.get("fix"):
+            n = counts["fix"]
+            parts.append(f"{n} fix{'es' if n != 1 else ''}")
+        if counts.get("perf"):
+            n = counts["perf"]
+            parts.append(f"{n} performance improvement{'s' if n != 1 else ''}")
+        if counts.get("docs"):
+            n = counts["docs"]
+            parts.append(f"{n} doc update{'s' if n != 1 else ''}")
+
+        if not parts:
+            # Only chore/build/ci — keep the summary honest.
+            parts.append(f"{len(deltas)} commit{'s' if len(deltas) != 1 else ''}")
+
+        return f"**{kind_label}** — {', '.join(parts)}."
 
     def _render_commit_line(self, spec: ReleaseSpec, commit: CommitDelta) -> str:
         # Strip the conventional prefix from the subject for cleaner notes.

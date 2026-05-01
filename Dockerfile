@@ -1,4 +1,4 @@
-FROM python:3.14-slim AS base
+FROM python:3.12-slim AS base
 
 WORKDIR /app
 
@@ -6,14 +6,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
+# Install dependencies in a builder layer. README.md is referenced by
+# pyproject.toml's `readme = "README.md"` field — must be present at install.
 FROM base AS builder
-
-COPY pyproject.toml ./
+COPY pyproject.toml README.md ./
 RUN pip install --no-cache-dir .
 
 FROM base AS production
 
-COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY src/ ./src/
